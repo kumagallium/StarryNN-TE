@@ -5,4 +5,3 @@ models/*
 !models/README.md
 .DS_Store
 output_dir/*
-results/*

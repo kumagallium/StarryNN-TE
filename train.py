@@ -317,9 +317,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--data-path",
-        default="datasets/20210415_interpolated_data.csv",
+        default="datasets/20230406_interpolated_data.csv",
         type=str,
-        help="Data path (default: datasets/20210415_interpolated_data.csv)",
+        help="Data path (default: datasets/20230406_interpolated_data.csv)",
     )
     parser.add_argument(
         "--target",
