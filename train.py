@@ -109,8 +109,9 @@ def build_model(hp, input_dim):
     output2 = Dense(1, activation="linear", name="output2")(x)
     output3 = Dense(1, activation="linear", name="output3")(x)
     output4 = Dense(1, activation="linear", name="output4")(x)
+    output5 = Dense(1, activation="linear", name="output5")(x)
 
-    model = Model(inputs=inputs, outputs=[output1, output2, output3, output4])
+    model = Model(inputs=inputs, outputs=[output1, output2, output3, output4, output5])
 
     model.compile(
         optimizer=Adam(
@@ -132,11 +133,11 @@ def tuning(input_dim, X_train, y_train, X_test, y_test):
     tuner = kt.Hyperband(
         lambda hp: build_model(hp, input_dim=input_dim),
         objective="val_loss",
-        max_epochs=50,
+        max_epochs=100,
         directory="models/output_dir",
         project_name="keras_tuning",
     )
-    tuner.search(X_train, y_train, epochs=50, validation_data=(X_test, y_test))
+    tuner.search(X_train, y_train, epochs=100, validation_data=(X_test, y_test))
     best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
 
     with open("models/best_hps.pkl", "wb") as f:
@@ -159,7 +160,7 @@ def set_nn(input_dim):
     model.add(Dropout(0.12))
     model.add(Dense(224, activation="sigmoid"))
     model.add(Dropout(0.42))
-    model.add(Dense(4, activation="linear"))
+    model.add(Dense(5, activation="linear"))
     optimizer = Adam(learning_rate=0.01)
     model.compile(optimizer=optimizer, loss="mean_squared_error")
 
@@ -186,7 +187,7 @@ def get_model(is_tuning, input_dim, X_train, y_train, X_test, y_test):
         else:
             model = set_nn(input_dim)
     history = model.fit(
-        X_train, y_train, epochs=50, batch_size=1024, validation_data=(X_test, y_test)
+        X_train, y_train, epochs=100, batch_size=1024, validation_data=(X_test, y_test)
     )
 
     train_loss = history.history["loss"]
@@ -228,7 +229,7 @@ def get_final_model(is_tuning, input_dim, X_train, y_train):
             model = build_model(loaded_best_hps, input_dim)
         else:
             model = set_nn(input_dim)
-    history = model.fit(X_train, y_train, epochs=50, batch_size=1024)
+    history = model.fit(X_train, y_train, epochs=100, batch_size=1024)
     if is_tuning == 1:
         model.save("models/final_tuned_model.keras")
     else:
@@ -236,7 +237,7 @@ def get_final_model(is_tuning, input_dim, X_train, y_train):
 
     return model
 
-    filnal_history = model.fit(X_final, y_final, epochs=50, batch_size=1024)
+    filnal_history = model.fit(X_final, y_final, epochs=100, batch_size=1024)
 
     return model
 
@@ -315,7 +316,7 @@ def main(args):
         * 10**3
     )
     df_data["ZT_RAE"] = np.abs((df_data["ZT_calc"] - df_data["ZT"]) / df_data["ZT"])
-    df_data = df_data[(df_data["ZT_RAE"] > 0) & (df_data["ZT_RAE"] < 0.4)].dropna()
+    df_data = df_data[(df_data["ZT_RAE"] > 0) & (df_data["ZT_RAE"] < 0.2)].dropna()
     df_data["Z"] = df_data["ZT"] / df_data["Temperature"]
     df_data = df_data[(df_data["ZT"] > 0)].dropna()
     df_data["Seebeck coefficient"] = np.abs(df_data["Seebeck coefficient"]) * 10**6
@@ -336,6 +337,7 @@ def main(args):
         "Seebeck coefficient",
         "Electrical conductivity",
         "Thermal conductivity",
+        "PF_calc",
         "ZT",
     ]
 
@@ -357,8 +359,8 @@ def main(args):
     X_test.columns = X_test.columns.astype(str)
     y_train = train_df.iloc[:, -1 * (len(outputprop)) :]
     y_test = test_df.iloc[:, -1 * (len(outputprop)) :]
-    y_train = y_train.values.reshape(-1, 4)
-    y_test = y_test.values.reshape(-1, 4)
+    y_train = y_train.values.reshape(-1, len(outputprop))
+    y_test = y_test.values.reshape(-1, len(outputprop))
     input_dim = X_train.shape[1]
 
     X_combined = np.concatenate([X_train, X_test], axis=0)

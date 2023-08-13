@@ -147,6 +147,7 @@ def main(args):
         "Seebeck coefficient",
         "Electrical conductivity",
         "Thermal conductivity",
+        "PF_calc",
         "ZT",
     ]
     predictions = pd.concat(

@@ -124,6 +124,7 @@ def main(args):
         "Seebeck coefficient",
         "Electrical conductivity",
         "Thermal conductivity",
+        "PF_calc",
         "ZT",
     ]
     for idx, prop in enumerate(outputprop):
