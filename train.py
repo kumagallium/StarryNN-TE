@@ -141,7 +141,7 @@ def tuning(input_dim, X_train, y_train, X_test, y_test):
         lambda hp: build_model(hp, input_dim=input_dim),
         objective="val_loss",
         max_epochs=100,
-        directory="output_dir",
+        directory="models/output_dir",
         project_name="keras_tuning",
     )
     tuner.search(X_train, y_train, epochs=100, validation_data=(X_test, y_test))
