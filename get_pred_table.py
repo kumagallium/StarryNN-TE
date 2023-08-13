@@ -9,6 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import load_model
 import random
 import matminer.featurizers.composition.composite as composite
+
 magpie_preset = composite.ElementProperty.from_preset("magpie")
 import pymatgen.core as mg
 from tqdm import tqdm
@@ -16,28 +17,30 @@ from concurrent.futures import ProcessPoolExecutor
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 import argparse
 
-plt.rcParams['font.size'] = 11
-plt.rcParams['font.family']= 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial']
-plt.rcParams['xtick.direction'] = 'in'       # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
-plt.rcParams['ytick.direction'] = 'in'       # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
-plt.rcParams['xtick.major.width'] = 1.2      # x軸主目盛り線の線幅
-plt.rcParams['ytick.major.width'] = 1.2      # y軸主目盛り線の線幅
-plt.rcParams['xtick.major.size'] = 3         # x軸主目盛り線の長さ
-plt.rcParams['ytick.major.size'] = 3         # y軸主目盛り線の長さ
-#plt.rcParams['axes.grid.axis'] = 'both'
-plt.rcParams['axes.linewidth'] = 1.2
-plt.rcParams['axes.grid']= False#True
-plt.rcParams["axes.edgecolor"] = 'black'
-plt.rcParams['grid.linestyle']= '--'
-plt.rcParams['grid.linewidth'] = 0.3
+plt.rcParams["font.size"] = 11
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.sans-serif"] = ["Arial"]
+plt.rcParams["xtick.direction"] = "in"  # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
+plt.rcParams["ytick.direction"] = "in"  # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
+plt.rcParams["xtick.major.width"] = 1.2  # x軸主目盛り線の線幅
+plt.rcParams["ytick.major.width"] = 1.2  # y軸主目盛り線の線幅
+plt.rcParams["xtick.major.size"] = 3  # x軸主目盛り線の長さ
+plt.rcParams["ytick.major.size"] = 3  # y軸主目盛り線の長さ
+# plt.rcParams['axes.grid.axis'] = 'both'
+plt.rcParams["axes.linewidth"] = 1.2
+plt.rcParams["axes.grid"] = False  # True
+plt.rcParams["axes.edgecolor"] = "black"
+plt.rcParams["grid.linestyle"] = "--"
+plt.rcParams["grid.linewidth"] = 0.3
 plt.rcParams["legend.markerscale"] = 2
-plt.rcParams["legend.fancybox"] = False      # Trueを指定すると凡例の枠の角が丸くなる
-plt.rcParams["legend.framealpha"] = 1        # 判例の透明度
-plt.rcParams["legend.edgecolor"] = 'black'
+plt.rcParams["legend.fancybox"] = False  # Trueを指定すると凡例の枠の角が丸くなる
+plt.rcParams["legend.framealpha"] = 1  # 判例の透明度
+plt.rcParams["legend.edgecolor"] = "black"
+
 
 def get_formula_to_feature(formula: str) -> list:
     try:
@@ -102,16 +105,13 @@ def get_feature(formula: str) -> list:
 def main(args):
     data_path = args.data_path
     df_data = pd.read_csv(data_path)
-    df_data = df_data[df_data["e_above_hull"]==0]
-    df_data = df_data[(df_data["band_gap"]>0)&(df_data["band_gap"]<=2)]
+    df_data = df_data[df_data["e_above_hull"] == 0]
+    df_data = df_data[(df_data["band_gap"] > 0) & (df_data["band_gap"] <= 2)]
     comp_list = df_data["pretty_formula"].unique()
 
     comp_feats = []
     with ProcessPoolExecutor(max_workers=None) as executor:
-        futures = [
-            executor.submit(get_feature,formula)
-            for formula in tqdm(comp_list)
-        ]
+        futures = [executor.submit(get_feature, formula) for formula in tqdm(comp_list)]
         for f in tqdm(futures):
             comp_feats.append(f.result())
     df_features = pd.DataFrame(comp_feats)
@@ -122,19 +122,19 @@ def main(args):
     for i, comp in tqdm(enumerate(comp_list)):
         for T in T_range:
             complist_T.append(comp)
-            tmp = list(df_features.iloc[i,0:])
+            tmp = list(df_features.iloc[i, 0:])
             tmp.append(T)
             input_list.append(tmp)
     df_input = pd.DataFrame(input_list)
-    df_input = df_input.rename(columns={df_input.shape[1]-1: 'Temperature'})
+    df_input = df_input.rename(columns={df_input.shape[1] - 1: "Temperature"})
     X = df_input
     X.columns = X.columns.astype(str)
     predictions = X.copy()
 
-    with open('models/scaler_X_final.pkl', 'rb') as f:
+    with open("models/scaler_X_final.pkl", "rb") as f:
         scaler_x = pickle.load(f)
 
-    with open('models/scaler_y_final.pkl', 'rb') as f:
+    with open("models/scaler_y_final.pkl", "rb") as f:
         scaler_y = pickle.load(f)
     X = scaler_x.transform(X)
 
@@ -144,15 +144,23 @@ def main(args):
     y_pred = scaler_y.inverse_transform(y_pred)
     predictions["results"] = y_pred.T[0]
     predictions["composition"] = complist_T
-    df_te_mat = predictions[["composition","Temperature","results"]]
-    df_te_mat = df_te_mat.sort_values(by='results', ascending=False)
-    df_te_mat.to_csv('results/pred_table.csv', index=False)
+    df_te_mat = predictions[["composition", "Temperature", "results"]]
+    df_te_mat = df_te_mat.sort_values(by="results", ascending=False)
+    df_te_mat.to_csv("results/pred_table.csv", index=False)
 
     dict_formula = {}
     dict_results = {}
     for T in T_range:
-        dict_formula[T] = index_tmp = list(df_te_mat[df_te_mat["Temperature"]==T].sort_values(by='results', ascending=False)['composition'])
-        dict_results[T] = results_tmp = list(df_te_mat[df_te_mat["Temperature"]==T].sort_values(by='results', ascending=False)['results'])
+        dict_formula[T] = index_tmp = list(
+            df_te_mat[df_te_mat["Temperature"] == T].sort_values(
+                by="results", ascending=False
+            )["composition"]
+        )
+        dict_results[T] = results_tmp = list(
+            df_te_mat[df_te_mat["Temperature"] == T].sort_values(
+                by="results", ascending=False
+            )["results"]
+        )
     df_formula = pd.DataFrame(dict_formula)
     df_formula = df_formula.reset_index(drop=True)
     df_formula.index = df_formula.index + 1
@@ -169,15 +177,15 @@ def main(args):
     ax.tick_params(bottom=False, left=False, right=False, top=False)
     rank = 50
     sns.heatmap(
-                df_results.iloc[:rank],
-                cmap="jet",
-                annot=df_formula.iloc[:rank],
-                fmt="",
-                #vmin=0.5,
-                #vmax=1,
-                annot_kws={"size": 7},
-                cbar_kws={"pad": 0.01},
-            )
+        df_results.iloc[:rank],
+        cmap="jet",
+        annot=df_formula.iloc[:rank],
+        fmt="",
+        # vmin=0.5,
+        # vmax=1,
+        annot_kws={"size": 7},
+        cbar_kws={"pad": 0.01},
+    )
     plt.tight_layout()
     plt.savefig("results/pred_table.png")
 
@@ -209,4 +217,3 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(args)
-

@@ -13,31 +13,33 @@ import random
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import r2_score
 import matminer.featurizers.composition.composite as composite
+
 magpie_preset = composite.ElementProperty.from_preset("magpie")
 import pymatgen.core as mg
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
 import argparse
+import os
 
-plt.rcParams['font.size'] = 11
-plt.rcParams['font.family']= 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial']
-plt.rcParams['xtick.direction'] = 'in'       # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
-plt.rcParams['ytick.direction'] = 'in'       # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
-plt.rcParams['xtick.major.width'] = 1.2      # x軸主目盛り線の線幅
-plt.rcParams['ytick.major.width'] = 1.2      # y軸主目盛り線の線幅
-plt.rcParams['xtick.major.size'] = 3         # x軸主目盛り線の長さ
-plt.rcParams['ytick.major.size'] = 3         # y軸主目盛り線の長さ
-#plt.rcParams['axes.grid.axis'] = 'both'
-plt.rcParams['axes.linewidth'] = 1.2
-plt.rcParams['axes.grid']= False#True
-plt.rcParams["axes.edgecolor"] = 'black'
-plt.rcParams['grid.linestyle']= '--'
-plt.rcParams['grid.linewidth'] = 0.3
+plt.rcParams["font.size"] = 11
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.sans-serif"] = ["Arial"]
+plt.rcParams["xtick.direction"] = "in"  # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
+plt.rcParams["ytick.direction"] = "in"  # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
+plt.rcParams["xtick.major.width"] = 1.2  # x軸主目盛り線の線幅
+plt.rcParams["ytick.major.width"] = 1.2  # y軸主目盛り線の線幅
+plt.rcParams["xtick.major.size"] = 3  # x軸主目盛り線の長さ
+plt.rcParams["ytick.major.size"] = 3  # y軸主目盛り線の長さ
+# plt.rcParams['axes.grid.axis'] = 'both'
+plt.rcParams["axes.linewidth"] = 1.2
+plt.rcParams["axes.grid"] = False  # True
+plt.rcParams["axes.edgecolor"] = "black"
+plt.rcParams["grid.linestyle"] = "--"
+plt.rcParams["grid.linewidth"] = 0.3
 plt.rcParams["legend.markerscale"] = 2
-plt.rcParams["legend.fancybox"] = False      # Trueを指定すると凡例の枠の角が丸くなる
-plt.rcParams["legend.framealpha"] = 1        # 判例の透明度
-plt.rcParams["legend.edgecolor"] = 'black'
+plt.rcParams["legend.fancybox"] = False  # Trueを指定すると凡例の枠の角が丸くなる
+plt.rcParams["legend.framealpha"] = 1  # 判例の透明度
+plt.rcParams["legend.edgecolor"] = "black"
 
 
 def get_formula_to_feature(formula: str) -> list:
@@ -67,7 +69,8 @@ def identify_material_and_dopants(formula: str) -> dict:
     }
     dopants_normalized = {el: amt / total_base for el, amt in dopants.items()}
 
-    return {"base_material": base_material_normalized, "dopants": dopants_normalized}
+    #return {"base_material": base_material_normalized, "dopants": dopants_normalized}
+    return {"base_material": base_material, "dopants": dopants}
 
 
 def get_feature(formula: str) -> list:
@@ -100,12 +103,12 @@ def get_feature(formula: str) -> list:
         return []
 
 
-def build_model(hp):
+def build_model(hp, input_dim):
     model = Sequential()
     model.add(
         Dense(
-            units=hp.Int("input_units", min_value=32, max_value=512, step=32),
-            input_dim=n_features,
+            units=hp.Int("input_units", min_value=32, max_value=1024, step=32),
+            input_dim=input_dim,
             activation="sigmoid",
         )
     )  # 入力層
@@ -114,7 +117,7 @@ def build_model(hp):
     )
     model.add(
         Dense(
-            units=hp.Int("hidden_units", min_value=32, max_value=512, step=32),
+            units=hp.Int("hidden_units", min_value=32, max_value=1024, step=32),
             activation="sigmoid",
         )
     )  # 隠れ層
@@ -129,10 +132,13 @@ def build_model(hp):
         loss="mean_squared_error",
     )
 
+    return model
 
-def get_tuned_model(X_train, y_train, X_test, y_test):
+
+def tuning(input_dim, X_train, y_train, X_test, y_test):
+    print("tuninig:", input_dim)
     tuner = kt.Hyperband(
-        build_model,
+        lambda hp: build_model(hp, input_dim=input_dim),
         objective="val_loss",
         max_epochs=100,
         directory="output_dir",
@@ -140,6 +146,9 @@ def get_tuned_model(X_train, y_train, X_test, y_test):
     )
     tuner.search(X_train, y_train, epochs=100, validation_data=(X_test, y_test))
     best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
+
+    with open('models/best_hps.pkl', 'wb') as f:
+        pickle.dump(best_hps, f)
     print(
         f"""
     The hyperparameter search is complete. The optimal number of units in the input layer is {best_hps.get('input_units')}. 
@@ -149,44 +158,94 @@ def get_tuned_model(X_train, y_train, X_test, y_test):
     """
     )
 
-    # Re-build the model with the optimal hyperparameters
-    model = build_model(best_hps)
-    history = model.fit(
-        X_train, y_train, epochs=100, batch_size=1024, validation_data=(X_test, y_test)
-    )
-    model.save("models/tuned_model.keras")
-
-    return model
+    return best_hps
 
 
-def get_model(n_features, X_train, y_train, X_test, y_test):
+def set_nn(input_dim):
     model = Sequential()
-    model.add(Dense(288, input_dim=n_features, activation="sigmoid"))
+    model.add(Dense(288, input_dim=input_dim, activation="sigmoid"))
     model.add(Dropout(0.12))
     model.add(Dense(224, activation="sigmoid"))
     model.add(Dropout(0.42))
     model.add(Dense(1, activation="linear"))
     optimizer = Adam(learning_rate=0.01)
     model.compile(optimizer=optimizer, loss="mean_squared_error")
-    history = model.fit(
-        X_train, y_train, epochs=100, batch_size=1024, validation_data=(X_test, y_test)
-    )
-    model.save("models/model.keras")
 
     return model
 
 
-def get_final_model(n_features, X_final, y_final):
-    model = Sequential()
-    model.add(Dense(288, input_dim=n_features, activation="sigmoid"))
-    model.add(Dropout(0.12))
-    model.add(Dense(224, activation="sigmoid"))
-    model.add(Dropout(0.42))
-    model.add(Dense(1, activation="linear"))
-    optimizer = Adam(learning_rate=0.01)
-    model.compile(optimizer=optimizer, loss="mean_squared_error")
+def get_model(is_tuning, input_dim, X_train, y_train, X_test, y_test):
+    if is_tuning == 1:
+        best_hps = tuning(input_dim, X_train, y_train, X_test, y_test)
+        model = build_model(best_hps, input_dim)
+    else:
+        if os.path.exists('models/best_hps.pkl'):
+            with open('models/best_hps.pkl', 'rb') as f:
+                loaded_best_hps = pickle.load(f)
+            print(
+                f"""
+            The hyperparameter search is complete. The optimal number of units in the input layer is {loaded_best_hps.get('input_units')}. 
+            The optimal number of units in the hidden layer is {loaded_best_hps.get('hidden_units')}.
+            The optimal learning rate for the optimizer is {loaded_best_hps.get('learning_rate')}.
+            The optimal dropout rate for the first and second, third dropout layers are {loaded_best_hps.get('dropout_1')} and {loaded_best_hps.get('dropout_2')} respectively.
+            """
+            )
+            model = build_model(loaded_best_hps, input_dim)
+        else:
+            model = set_nn(input_dim)
+    history = model.fit(
+        X_train, y_train, epochs=100, batch_size=1024, validation_data=(X_test, y_test)
+    )
+
+    train_loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    epochs = list(range(1, len(train_loss) + 1))
+
+    fig = plt.figure(figsize=(4.5, 4), dpi=300, facecolor="w", edgecolor="k")
+    ax = fig.add_subplot(1, 1, 1)
+    ax.xaxis.set_ticks_position("both")
+    ax.yaxis.set_ticks_position("both")
+    ax.set_xlim(min(epochs), max(epochs))
+    ax.set_ylim(0, max(max(train_loss), max(val_loss)))
+
+    ax.plot(epochs, train_loss, 'bo', label='Training loss')
+    ax.plot(epochs, val_loss, 'b', label='Validation loss')
+    ax.set_title('Training and Validation Loss')
+    ax.set_xlabel('Epochs')
+    ax.set_ylabel('Loss')
+    ax.legend()
+    plt.savefig("results/loss_plot.png")
+
+
+    if is_tuning == 1:
+        model.save("models/tuned_model.keras")
+    else:
+        model.save("models/model.keras")
+
+    return model
+
+
+def get_final_model(is_tuning, input_dim, X_train, y_train):
+    if is_tuning == 1:
+        with open('models/best_hps.pkl', 'rb') as f:
+            loaded_best_hps = pickle.load(f)
+        model = build_model(loaded_best_hps, input_dim)
+    else:
+        if os.path.exists('models/best_hps.pkl'):
+            with open('models/best_hps.pkl', 'rb') as f:
+                loaded_best_hps = pickle.load(f)
+            model = build_model(loaded_best_hps, input_dim)
+        else:
+            model = set_nn(input_dim)
+    history = model.fit(X_train, y_train, epochs=100, batch_size=1024)
+    if is_tuning == 1:
+        model.save("models/final_tuned_model.keras")
+    else:
+        model.save("models/final_model.keras")
+
+    return model
+
     filnal_history = model.fit(X_final, y_final, epochs=100, batch_size=1024)
-    model.save("models/final_model.keras")
 
     return model
 
@@ -252,7 +311,7 @@ def main(args):
     y_test = test_df.iloc[:, -1]
     y_train = y_train.values.reshape(-1, 1)
     y_test = y_test.values.reshape(-1, 1)
-    n_features = X_train.shape[1]
+    input_dim = X_train.shape[1]
 
     X_combined = np.concatenate([X_train, X_test], axis=0)
     X_combined = np.vstack([X_train, X_test])
@@ -266,33 +325,34 @@ def main(args):
     y_train = scaler_y.fit_transform(y_train)
     y_test = scaler_y.transform(y_test)
 
-    model = get_model(n_features, X_train, y_train, X_test, y_test)
+    model = get_model(args.is_tuning, input_dim, X_train, y_train, X_test, y_test)
+
     y_pred = model.predict(X_test)
     # スケーリングを元に戻す
     y_test_check = scaler_y.inverse_transform(y_test)
     y_pred_check = scaler_y.inverse_transform(y_pred)
-    
-    mse = mean_squared_error(y_test_check , y_pred_check )
-    r2 = r2_score(y_test_check , y_pred_check )
+
+    mse = mean_squared_error(y_test_check, y_pred_check)
+    r2 = r2_score(y_test_check, y_pred_check)
     rmse = np.sqrt(mse)
     print(f"Test MSE: {mse}")
     print(f"Test R^2 score: {r2}")
     print(f"Test RMSE: {rmse}")
 
-    fig = plt.figure(figsize=(4.5,4),dpi=300,facecolor='w',edgecolor='k')
-    ax = fig.add_subplot(1,1,1)
+    fig = plt.figure(figsize=(4.5, 4), dpi=300, facecolor="w", edgecolor="k")
+    ax = fig.add_subplot(1, 1, 1)
     max_val = max(max(y_test_check), max(y_pred_check))
     min_val = min(min(y_test_check), min(y_pred_check))
-    ax.xaxis.set_ticks_position('both')
-    ax.yaxis.set_ticks_position('both')
-    ax.set_xlim(min_val,max_val)
-    ax.set_ylim(min_val,max_val)
+    ax.xaxis.set_ticks_position("both")
+    ax.yaxis.set_ticks_position("both")
+    ax.set_xlim(min_val, max_val)
+    ax.set_ylim(min_val, max_val)
 
     ax.scatter(y_test_check, y_pred_check)
-    ax.set_xlabel('True Values')
-    ax.set_ylabel('Predictions')
+    ax.set_xlabel("True Values")
+    ax.set_ylabel("Predictions")
     ax.grid(True)
-    ax.plot([min_val, max_val], [min_val, max_val], color='red')
+    ax.plot([min_val, max_val], [min_val, max_val], color="red")
     plt.savefig("results/parity_plot.png")
 
     scaler_x_final = StandardScaler()
@@ -300,16 +360,16 @@ def main(args):
     scaler_y_final = StandardScaler()
     y_final = scaler_y_final.fit_transform(y_combined)
 
-    with open('models/scaler_X_final.pkl', 'wb') as f:
+    with open("models/scaler_X_final.pkl", "wb") as f:
         pickle.dump(scaler_x_final, f)
-    with open('models/scaler_y_final.pkl', 'wb') as f:
+    with open("models/scaler_y_final.pkl", "wb") as f:
         pickle.dump(scaler_y_final, f)
 
-    final_model = get_final_model(n_features, X_final, y_final)
+    final_model = get_final_model(args.is_tuning, input_dim, X_final, y_final)
 
 
 if __name__ == "__main__":
-    seed_value = 0
+    seed_value = 10
     random.seed(seed_value)
     np.random.seed(seed_value)
     tf.random.set_seed(seed_value)
@@ -326,6 +386,12 @@ if __name__ == "__main__":
         default="ZT",
         type=str,
         help="target property (default: ZT)",
+    )
+    parser.add_argument(
+        "--is_tuning",
+        default=0,
+        type=int,
+        help="tuning flug (default: 0)",
     )
     args = parser.parse_args()
     main(args)

@@ -9,6 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import load_model
 import random
 import matminer.featurizers.composition.composite as composite
+
 magpie_preset = composite.ElementProperty.from_preset("magpie")
 import pymatgen.core as mg
 from tqdm import tqdm
@@ -16,8 +17,10 @@ from concurrent.futures import ProcessPoolExecutor
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 import argparse
+
 
 def get_formula_to_feature(formula: str) -> list:
     try:
@@ -82,36 +85,33 @@ def get_feature(formula: str) -> list:
 def main(args):
     data_path = args.data_path
     df_data = pd.read_csv(data_path)
-    df_data = df_data[df_data["e_above_hull"]==0]
-    df_data = df_data[(df_data["band_gap"]>0)&(df_data["band_gap"]<=2)]
+    df_data = df_data[df_data["e_above_hull"] == 0]
+    df_data = df_data[(df_data["band_gap"] > 0) & (df_data["band_gap"] <= 2)]
     comp_list = df_data["pretty_formula"].unique()
 
     comp_feats = []
     with ProcessPoolExecutor(max_workers=None) as executor:
-        futures = [
-            executor.submit(get_feature,formula)
-            for formula in tqdm(comp_list)
-        ]
+        futures = [executor.submit(get_feature, formula) for formula in tqdm(comp_list)]
         for f in tqdm(futures):
             comp_feats.append(f.result())
     df_features = pd.DataFrame(comp_feats)
 
     target = args.formula
     target_idx = np.where(comp_list == target)[0][0]
-    T_list = list(range(300,1100,100))
+    T_list = list(range(300, 1100, 100))
     input_list = []
     for T in T_list:
-        tmp = list(df_features.iloc[target_idx,0:])
+        tmp = list(df_features.iloc[target_idx, 0:])
         tmp.append(T)
         input_list.append(tmp)
     df_input = pd.DataFrame(input_list).dropna()
-    df_input = df_input.rename(columns={df_input.shape[1]-1: 'Temperature'})
+    df_input = df_input.rename(columns={df_input.shape[1] - 1: "Temperature"})
     X = df_input
     X.columns = X.columns.astype(str)
 
-    with open('models/scaler_X_final.pkl', 'rb') as f:
+    with open("models/scaler_X_final.pkl", "rb") as f:
         scaler_x = pickle.load(f)
-    with open('models/scaler_y_final.pkl', 'rb') as f:
+    with open("models/scaler_y_final.pkl", "rb") as f:
         scaler_y = pickle.load(f)
 
     X = scaler_x.transform(X)
@@ -119,9 +119,9 @@ def main(args):
     loaded_model = load_model(args.model_path)
     print(loaded_model.summary())
     y_pred = loaded_model.predict(X)
-    print(dict(zip(T_list,y_pred.T[0])))
+    print(dict(zip(T_list, y_pred.T[0])))
     y_pred = scaler_y.inverse_transform(y_pred)
-    print(dict(zip(T_list,y_pred.T[0])))
+    print(dict(zip(T_list, y_pred.T[0])))
 
 
 if __name__ == "__main__":
@@ -151,4 +151,3 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(args)
-

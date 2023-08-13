@@ -4,4 +4,4 @@ datasets/*
 models/*
 !models/README.md
 .DS_Store
-output_dir/*
+output_dir*
