@@ -24,12 +24,12 @@ import os
 plt.rcParams["font.size"] = 11
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["font.sans-serif"] = ["Arial"]
-plt.rcParams["xtick.direction"] = "in"  # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
-plt.rcParams["ytick.direction"] = "in"  # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
-plt.rcParams["xtick.major.width"] = 1.2  # x軸主目盛り線の線幅
-plt.rcParams["ytick.major.width"] = 1.2  # y軸主目盛り線の線幅
-plt.rcParams["xtick.major.size"] = 3  # x軸主目盛り線の長さ
-plt.rcParams["ytick.major.size"] = 3  # y軸主目盛り線の長さ
+plt.rcParams["xtick.direction"] = "in" 
+plt.rcParams["ytick.direction"] = "in" 
+plt.rcParams["xtick.major.width"] = 1.2
+plt.rcParams["ytick.major.width"] = 1.2
+plt.rcParams["xtick.major.size"] = 3
+plt.rcParams["ytick.major.size"] = 3
 # plt.rcParams['axes.grid.axis'] = 'both'
 plt.rcParams["axes.linewidth"] = 1.2
 plt.rcParams["axes.grid"] = False  # True
@@ -37,8 +37,8 @@ plt.rcParams["axes.edgecolor"] = "black"
 plt.rcParams["grid.linestyle"] = "--"
 plt.rcParams["grid.linewidth"] = 0.3
 plt.rcParams["legend.markerscale"] = 2
-plt.rcParams["legend.fancybox"] = False  # Trueを指定すると凡例の枠の角が丸くなる
-plt.rcParams["legend.framealpha"] = 1  # 判例の透明度
+plt.rcParams["legend.fancybox"] = False
+plt.rcParams["legend.framealpha"] = 1
 plt.rcParams["legend.edgecolor"] = "black"
 
 
@@ -55,21 +55,9 @@ def get_formula_to_feature(formula: str) -> list:
 def identify_material_and_dopants(formula: str) -> dict:
     composition = mg.Composition(formula).fractional_composition
 
-    # Determine base material and dopant compositions
     base_material = {el: amt for el, amt in composition.items() if amt >= 0.1}
     dopants = {el: amt for el, amt in composition.items() if amt < 0.1}
 
-    # Normalize base material to sum to 1
-    total_base = sum(base_material.values())
-    total_dopants = sum(dopants.values())
-    ratio = total_dopants / total_base
-
-    base_material_normalized = {
-        el: amt / total_base for el, amt in base_material.items()
-    }
-    dopants_normalized = {el: amt / total_base for el, amt in dopants.items()}
-
-    #return {"base_material": base_material_normalized, "dopants": dopants_normalized}
     return {"base_material": base_material, "dopants": dopants}
 
 
@@ -111,7 +99,7 @@ def build_model(hp, input_dim):
             input_dim=input_dim,
             activation="sigmoid",
         )
-    )  # 入力層
+    )
     model.add(
         Dropout(rate=hp.Float("dropout_1", min_value=0.0, max_value=0.5, step=0.01))
     )
@@ -120,11 +108,11 @@ def build_model(hp, input_dim):
             units=hp.Int("hidden_units", min_value=32, max_value=1024, step=32),
             activation="sigmoid",
         )
-    )  # 隠れ層
+    )
     model.add(
         Dropout(rate=hp.Float("dropout_2", min_value=0.0, max_value=0.5, step=0.01))
     )
-    model.add(Dense(1, activation="linear"))  # 出力層
+    model.add(Dense(1, activation="linear")) 
     model.compile(
         optimizer=Adam(
             learning_rate=hp.Choice("learning_rate", values=[1e-2, 1e-3, 1e-4])
@@ -140,14 +128,14 @@ def tuning(input_dim, X_train, y_train, X_test, y_test):
     tuner = kt.Hyperband(
         lambda hp: build_model(hp, input_dim=input_dim),
         objective="val_loss",
-        max_epochs=100,
+        max_epochs=50,
         directory="models/output_dir",
         project_name="keras_tuning",
     )
-    tuner.search(X_train, y_train, epochs=100, validation_data=(X_test, y_test))
+    tuner.search(X_train, y_train, epochs=50, validation_data=(X_test, y_test))
     best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
 
-    with open('models/best_hps.pkl', 'wb') as f:
+    with open("models/best_hps.pkl", "wb") as f:
         pickle.dump(best_hps, f)
     print(
         f"""
@@ -179,8 +167,8 @@ def get_model(is_tuning, input_dim, X_train, y_train, X_test, y_test):
         best_hps = tuning(input_dim, X_train, y_train, X_test, y_test)
         model = build_model(best_hps, input_dim)
     else:
-        if os.path.exists('models/best_hps.pkl'):
-            with open('models/best_hps.pkl', 'rb') as f:
+        if os.path.exists("models/best_hps.pkl"):
+            with open("models/best_hps.pkl", "rb") as f:
                 loaded_best_hps = pickle.load(f)
             print(
                 f"""
@@ -194,11 +182,11 @@ def get_model(is_tuning, input_dim, X_train, y_train, X_test, y_test):
         else:
             model = set_nn(input_dim)
     history = model.fit(
-        X_train, y_train, epochs=100, batch_size=1024, validation_data=(X_test, y_test)
+        X_train, y_train, epochs=50, batch_size=1024, validation_data=(X_test, y_test)
     )
 
-    train_loss = history.history['loss']
-    val_loss = history.history['val_loss']
+    train_loss = history.history["loss"]
+    val_loss = history.history["val_loss"]
     epochs = list(range(1, len(train_loss) + 1))
 
     fig = plt.figure(figsize=(4.5, 4), dpi=300, facecolor="w", edgecolor="k")
@@ -208,14 +196,13 @@ def get_model(is_tuning, input_dim, X_train, y_train, X_test, y_test):
     ax.set_xlim(min(epochs), max(epochs))
     ax.set_ylim(0, max(max(train_loss), max(val_loss)))
 
-    ax.plot(epochs, train_loss, 'bo', label='Training loss')
-    ax.plot(epochs, val_loss, 'b', label='Validation loss')
-    ax.set_title('Training and Validation Loss')
-    ax.set_xlabel('Epochs')
-    ax.set_ylabel('Loss')
+    ax.plot(epochs, train_loss, "bo", label="Training loss")
+    ax.plot(epochs, val_loss, "b", label="Validation loss")
+    ax.set_title("Training and Validation Loss")
+    ax.set_xlabel("Epochs")
+    ax.set_ylabel("Loss")
     ax.legend()
     plt.savefig("results/loss_plot.png")
-
 
     if is_tuning == 1:
         model.save("models/tuned_model.keras")
@@ -227,17 +214,17 @@ def get_model(is_tuning, input_dim, X_train, y_train, X_test, y_test):
 
 def get_final_model(is_tuning, input_dim, X_train, y_train):
     if is_tuning == 1:
-        with open('models/best_hps.pkl', 'rb') as f:
+        with open("models/best_hps.pkl", "rb") as f:
             loaded_best_hps = pickle.load(f)
         model = build_model(loaded_best_hps, input_dim)
     else:
-        if os.path.exists('models/best_hps.pkl'):
-            with open('models/best_hps.pkl', 'rb') as f:
+        if os.path.exists("models/best_hps.pkl"):
+            with open("models/best_hps.pkl", "rb") as f:
                 loaded_best_hps = pickle.load(f)
             model = build_model(loaded_best_hps, input_dim)
         else:
             model = set_nn(input_dim)
-    history = model.fit(X_train, y_train, epochs=100, batch_size=1024)
+    history = model.fit(X_train, y_train, epochs=50, batch_size=1024)
     if is_tuning == 1:
         model.save("models/final_tuned_model.keras")
     else:
@@ -245,7 +232,7 @@ def get_final_model(is_tuning, input_dim, X_train, y_train):
 
     return model
 
-    filnal_history = model.fit(X_final, y_final, epochs=100, batch_size=1024)
+    filnal_history = model.fit(X_final, y_final, epochs=50, batch_size=1024)
 
     return model
 

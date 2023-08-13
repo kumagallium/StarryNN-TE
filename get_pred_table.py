@@ -191,7 +191,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    seed_value = 0
+    seed_value = 10
     random.seed(seed_value)
     np.random.seed(seed_value)
     tf.random.set_seed(seed_value)
