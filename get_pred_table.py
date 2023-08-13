@@ -142,52 +142,65 @@ def main(args):
     print(loaded_model.summary())
     y_pred = loaded_model.predict(X)
     y_pred = scaler_y.inverse_transform(y_pred)
-    predictions["results"] = y_pred.T[0]
+
+    outputprop = [
+        "Seebeck coefficient",
+        "Electrical conductivity",
+        "Thermal conductivity",
+        "ZT",
+    ]
+    predictions = pd.concat(
+        [predictions, pd.DataFrame(y_pred, columns=outputprop)], axis=1
+    )
     predictions["composition"] = complist_T
-    df_te_mat = predictions[["composition", "Temperature", "results"]]
-    df_te_mat = df_te_mat.sort_values(by="results", ascending=False)
+
+    columns = ["composition", "Temperature"]
+    columns.extend(outputprop)
+    df_te_mat = predictions[columns]
+    df_te_mat = df_te_mat.sort_values(by="ZT", ascending=False)
     df_te_mat.to_csv("results/pred_table.csv", index=False)
 
-    dict_formula = {}
-    dict_results = {}
-    for T in T_range:
-        dict_formula[T] = index_tmp = list(
-            df_te_mat[df_te_mat["Temperature"] == T].sort_values(
-                by="results", ascending=False
-            )["composition"]
-        )
-        dict_results[T] = results_tmp = list(
-            df_te_mat[df_te_mat["Temperature"] == T].sort_values(
-                by="results", ascending=False
-            )["results"]
-        )
-    df_formula = pd.DataFrame(dict_formula)
-    df_formula = df_formula.reset_index(drop=True)
-    df_formula.index = df_formula.index + 1
-    df_results = pd.DataFrame(dict_results)
-    df_results = df_results.reset_index(drop=True)
-    df_results.index = df_results.index + 1
+    for prop in outputprop:
+        dict_formula = {}
+        dict_results = {}
+        for T in T_range:
+            dict_formula[T] = index_tmp = list(
+                df_te_mat[df_te_mat["Temperature"] == T].sort_values(
+                    by=prop, ascending=False
+                )["composition"]
+            )
+            dict_results[T] = results_tmp = list(
+                df_te_mat[df_te_mat["Temperature"] == T].sort_values(
+                    by=prop, ascending=False
+                )[prop]
+            )
+        df_formula = pd.DataFrame(dict_formula)
+        df_formula = df_formula.reset_index(drop=True)
+        df_formula.index = df_formula.index + 1
+        df_results = pd.DataFrame(dict_results)
+        df_results = df_results.reset_index(drop=True)
+        df_results.index = df_results.index + 1
 
-    fig = plt.figure(figsize=(12, 7), dpi=400, facecolor="w", edgecolor="k")
-    ax = fig.add_subplot(1, 1, 1)
-    ax.tick_params(pad=1)
-    ax.xaxis.set_ticks_position("top")
-    ax.tick_params(bottom="off", top="off")
-    ax.tick_params(left="off")
-    ax.tick_params(bottom=False, left=False, right=False, top=False)
-    rank = 50
-    sns.heatmap(
-        df_results.iloc[:rank],
-        cmap="jet",
-        annot=df_formula.iloc[:rank],
-        fmt="",
-        # vmin=0.5,
-        # vmax=1,
-        annot_kws={"size": 7},
-        cbar_kws={"pad": 0.01},
-    )
-    plt.tight_layout()
-    plt.savefig("results/pred_table.png")
+        fig = plt.figure(figsize=(12, 7), dpi=400, facecolor="w", edgecolor="k")
+        ax = fig.add_subplot(1, 1, 1)
+        ax.tick_params(pad=1)
+        ax.xaxis.set_ticks_position("top")
+        ax.tick_params(bottom="off", top="off")
+        ax.tick_params(left="off")
+        ax.tick_params(bottom=False, left=False, right=False, top=False)
+        rank = 50
+        sns.heatmap(
+            df_results.iloc[:rank],
+            cmap="jet",
+            annot=df_formula.iloc[:rank],
+            fmt="",
+            # vmin=0.5,
+            # vmax=1,
+            annot_kws={"size": 7},
+            cbar_kws={"pad": 0.01},
+        )
+        plt.tight_layout()
+        plt.savefig("results/pred_table_" + prop.replace(" ", "_") + ".png")
 
 
 if __name__ == "__main__":

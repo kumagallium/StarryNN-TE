@@ -24,8 +24,8 @@ import os
 plt.rcParams["font.size"] = 11
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["font.sans-serif"] = ["Arial"]
-plt.rcParams["xtick.direction"] = "in" 
-plt.rcParams["ytick.direction"] = "in" 
+plt.rcParams["xtick.direction"] = "in"
+plt.rcParams["ytick.direction"] = "in"
 plt.rcParams["xtick.major.width"] = 1.2
 plt.rcParams["ytick.major.width"] = 1.2
 plt.rcParams["xtick.major.size"] = 3
@@ -92,32 +92,36 @@ def get_feature(formula: str) -> list:
 
 
 def build_model(hp, input_dim):
-    model = Sequential()
-    model.add(
-        Dense(
-            units=hp.Int("input_units", min_value=32, max_value=1024, step=32),
-            input_dim=input_dim,
-            activation="sigmoid",
-        )
-    )
-    model.add(
-        Dropout(rate=hp.Float("dropout_1", min_value=0.0, max_value=0.5, step=0.01))
-    )
-    model.add(
-        Dense(
-            units=hp.Int("hidden_units", min_value=32, max_value=1024, step=32),
-            activation="sigmoid",
-        )
-    )
-    model.add(
-        Dropout(rate=hp.Float("dropout_2", min_value=0.0, max_value=0.5, step=0.01))
-    )
-    model.add(Dense(1, activation="linear")) 
+    inputs = Input(shape=(input_dim,))
+
+    x = Dense(
+        units=hp.Int("input_units", min_value=32, max_value=1024, step=32),
+        activation="sigmoid",
+    )(inputs)
+    x = Dropout(rate=hp.Float("dropout_1", min_value=0.0, max_value=0.5, step=0.01))(x)
+    x = Dense(
+        units=hp.Int("hidden_units", min_value=32, max_value=1024, step=32),
+        activation="sigmoid",
+    )(x)
+    x = Dropout(rate=hp.Float("dropout_2", min_value=0.0, max_value=0.5, step=0.01))(x)
+
+    output1 = Dense(1, activation="linear", name="output1")(x)
+    output2 = Dense(1, activation="linear", name="output2")(x)
+    output3 = Dense(1, activation="linear", name="output3")(x)
+    output4 = Dense(1, activation="linear", name="output4")(x)
+
+    model = Model(inputs=inputs, outputs=[output1, output2, output3, output4])
+
     model.compile(
         optimizer=Adam(
             learning_rate=hp.Choice("learning_rate", values=[1e-2, 1e-3, 1e-4])
         ),
-        loss="mean_squared_error",
+        loss={
+            "output1": "mean_squared_error",
+            "output2": "mean_squared_error",
+            "output3": "mean_squared_error",
+            "output4": "mean_squared_error",
+        },
     )
 
     return model
@@ -155,7 +159,7 @@ def set_nn(input_dim):
     model.add(Dropout(0.12))
     model.add(Dense(224, activation="sigmoid"))
     model.add(Dropout(0.42))
-    model.add(Dense(1, activation="linear"))
+    model.add(Dense(4, activation="linear"))
     optimizer = Adam(learning_rate=0.01)
     model.compile(optimizer=optimizer, loss="mean_squared_error")
 
@@ -237,6 +241,55 @@ def get_final_model(is_tuning, input_dim, X_train, y_train):
     return model
 
 
+def viz_parity_plot(target, true, pred):
+    fig = plt.figure(figsize=(4.5, 4), dpi=300, facecolor="w", edgecolor="k")
+    ax = fig.add_subplot(1, 1, 1)
+    ax.xaxis.set_ticks_position("both")
+    ax.yaxis.set_ticks_position("both")
+
+    ax.scatter(true, pred)
+
+    if target == "Thermal conductivity":
+        ax.set_xlabel("Experimental $\u03BA$ [Wm$^{-1}$K$^{-1}$]")
+        ax.set_ylabel("Predicted  $\u03BA$ [Wm$^{-1}$K$^{-1}$]")
+        ax_min = 0
+        ax_max = 20
+        ax.set_xlim(ax_min, ax_max)
+        ax.set_ylim(ax_min, ax_max)
+    elif target == "Seebeck coefficient":
+        ax.set_xlabel("Experimental $S$ [\u03BCVK$^{-1}$]")
+        ax.set_ylabel("Predicted $S$ [\u03BCVK$^{-1}$]")
+        ax_min = 0
+        ax_max = 1000
+        ax.set_xlim(ax_min, ax_max)
+        ax.set_ylim(ax_min, ax_max)
+    elif target == "Electrical conductivity":
+        ax.set_xlabel("Experimental $\u03C3$ [\u03A9$^{-1}$m$^{-1}$]")
+        ax.set_ylabel("Predicted  $\u03C3$ [\u03A9$^{-1}$m$^{-1}$]")
+        ax_min = 0
+        ax_max = 1000000
+        ax.set_xlim(ax_min, ax_max)
+        ax.set_ylim(ax_min, ax_max)
+    elif target == "PF_calc":
+        ax.set_xlabel("Experimental $PF_{ \mathrm{calc}}$ [mWm$^{-1}$K$^{-2}$]")
+        ax.set_ylabel("Predicted $PF_{ \mathrm{calc}}$ [mWm$^{-1}$K$^{-2}$]")
+        ax_min = 0
+        ax_max = 10
+        ax.set_xlim(ax_min, ax_max)
+        ax.set_ylim(ax_min, ax_max)
+    elif target == "ZT":
+        ax.set_xlabel("Experimental $ZT$")
+        ax.set_ylabel("Predicted $ZT$")
+        ax_min = 0
+        ax_max = 2
+        ax.set_xlim(ax_min, ax_max)
+        ax.set_ylim(ax_min, ax_max)
+
+    ax.grid(True)
+    ax.plot([ax_min, ax_max], [ax_min, ax_max], color="red")
+    plt.savefig("results/parity_plot_" + target.replace(" ", "_") + ".png")
+
+
 def main(args):
     data_path = args.data_path
     df_data = pd.read_csv(data_path)
@@ -256,13 +309,16 @@ def main(args):
         * df_data["Electrical conductivity"]
         * df_data["Temperature"]
     ) / df_data["Thermal conductivity"]
-    df_data["PF_calc"] = (df_data["Seebeck coefficient"] ** 2) * df_data[
-        "Electrical conductivity"
-    ]
+    df_data["PF_calc"] = (
+        (df_data["Seebeck coefficient"] ** 2)
+        * df_data["Electrical conductivity"]
+        * 10**3
+    )
     df_data["ZT_RAE"] = np.abs((df_data["ZT_calc"] - df_data["ZT"]) / df_data["ZT"])
     df_data = df_data[(df_data["ZT_RAE"] > 0) & (df_data["ZT_RAE"] < 0.4)].dropna()
     df_data["Z"] = df_data["ZT"] / df_data["Temperature"]
     df_data = df_data[(df_data["ZT"] > 0)].dropna()
+    df_data["Seebeck coefficient"] = np.abs(df_data["Seebeck coefficient"]) * 10**6
 
     comp_feats = []
     with ProcessPoolExecutor(max_workers=None) as executor:
@@ -276,7 +332,12 @@ def main(args):
     df_features = pd.DataFrame(comp_feats)
     unique_key = "sid"
     inputprop = ["Temperature", unique_key]
-    outputprop = [args.target]
+    outputprop = [
+        "Seebeck coefficient",
+        "Electrical conductivity",
+        "Thermal conductivity",
+        "ZT",
+    ]
 
     df_features = df_features.reset_index(drop=True)
     df_data = df_data.reset_index(drop=True)
@@ -290,14 +351,14 @@ def main(args):
     )
     train_df = df_input[df_input[unique_key].isin(train_keys)]
     test_df = df_input[df_input[unique_key].isin(test_keys)]
-    X_train = train_df.iloc[:, :-2]
-    X_test = test_df.iloc[:, :-2]
+    X_train = train_df.iloc[:, : -1 * (len(outputprop) + 1)]
+    X_test = test_df.iloc[:, : -1 * (len(outputprop) + 1)]
     X_train.columns = X_train.columns.astype(str)
     X_test.columns = X_test.columns.astype(str)
-    y_train = train_df.iloc[:, -1]
-    y_test = test_df.iloc[:, -1]
-    y_train = y_train.values.reshape(-1, 1)
-    y_test = y_test.values.reshape(-1, 1)
+    y_train = train_df.iloc[:, -1 * (len(outputprop)) :]
+    y_test = test_df.iloc[:, -1 * (len(outputprop)) :]
+    y_train = y_train.values.reshape(-1, 4)
+    y_test = y_test.values.reshape(-1, 4)
     input_dim = X_train.shape[1]
 
     X_combined = np.concatenate([X_train, X_test], axis=0)
@@ -315,7 +376,6 @@ def main(args):
     model = get_model(args.is_tuning, input_dim, X_train, y_train, X_test, y_test)
 
     y_pred = model.predict(X_test)
-    # スケーリングを元に戻す
     y_test_check = scaler_y.inverse_transform(y_test)
     y_pred_check = scaler_y.inverse_transform(y_pred)
 
@@ -326,21 +386,8 @@ def main(args):
     print(f"Test R^2 score: {r2}")
     print(f"Test RMSE: {rmse}")
 
-    fig = plt.figure(figsize=(4.5, 4), dpi=300, facecolor="w", edgecolor="k")
-    ax = fig.add_subplot(1, 1, 1)
-    max_val = max(max(y_test_check), max(y_pred_check))
-    min_val = min(min(y_test_check), min(y_pred_check))
-    ax.xaxis.set_ticks_position("both")
-    ax.yaxis.set_ticks_position("both")
-    ax.set_xlim(min_val, max_val)
-    ax.set_ylim(min_val, max_val)
-
-    ax.scatter(y_test_check, y_pred_check)
-    ax.set_xlabel("True Values")
-    ax.set_ylabel("Predictions")
-    ax.grid(True)
-    ax.plot([min_val, max_val], [min_val, max_val], color="red")
-    plt.savefig("results/parity_plot.png")
+    for idx, tg in enumerate(outputprop):
+        viz_parity_plot(tg, y_test_check.T[idx], y_pred_check.T[idx])
 
     scaler_x_final = StandardScaler()
     X_final = scaler_x_final.fit_transform(X_combined)
@@ -356,7 +403,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    seed_value = 10
+    seed_value = 0
     random.seed(seed_value)
     np.random.seed(seed_value)
     tf.random.set_seed(seed_value)
@@ -367,12 +414,6 @@ if __name__ == "__main__":
         default="datasets/20230406_interpolated_data.csv",
         type=str,
         help="Data path (default: datasets/20230406_interpolated_data.csv)",
-    )
-    parser.add_argument(
-        "--target",
-        default="ZT",
-        type=str,
-        help="target property (default: ZT)",
     )
     parser.add_argument(
         "--is_tuning",

@@ -119,13 +119,31 @@ def main(args):
     loaded_model = load_model(args.model_path)
     print(loaded_model.summary())
     y_pred = loaded_model.predict(X)
-    print(dict(zip(T_list, y_pred.T[0])))
     y_pred = scaler_y.inverse_transform(y_pred)
-    print(dict(zip(T_list, y_pred.T[0])))
+    outputprop = [
+        "Seebeck coefficient",
+        "Electrical conductivity",
+        "Thermal conductivity",
+        "ZT",
+    ]
+    for idx, prop in enumerate(outputprop):
+        if prop == "Thermal conductivity":
+            unit = "[Wm-1K-1]"
+        elif prop == "Seebeck coefficient":
+            unit = "[uVK-1]"
+        elif prop == "Electrical conductivity":
+            unit = "[Ω-1m-1]"
+        elif prop == "PF_calc":
+            unit = "[mWm-1K-2]"
+        elif prop == "ZT":
+            unit = ""
+        print(prop + unit)
+        print(dict(zip(T_list, y_pred.T[idx])))
+        print("\n")
 
 
 if __name__ == "__main__":
-    seed_value = 10
+    seed_value = 0
     random.seed(seed_value)
     np.random.seed(seed_value)
     tf.random.set_seed(seed_value)
