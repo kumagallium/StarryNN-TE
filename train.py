@@ -252,7 +252,6 @@ def get_final_model(is_tuning, input_dim, X_train, y_train):
 
     return model
 
-
 def viz_parity_plot(target, true, pred):
     fig = plt.figure(figsize=(4, 4), dpi=300, facecolor="w", edgecolor="k")
     ax = fig.add_subplot(1, 1, 1)
@@ -301,7 +300,6 @@ def viz_parity_plot(target, true, pred):
     ax.plot([ax_min, ax_max], [ax_min, ax_max], color="red")
     plt.savefig("results/parity_plot_" + target.replace(" ", "_") + ".png")
 
-
 def get_elements(formula):
     try:
         comp = mg.Composition(formula)
@@ -310,14 +308,12 @@ def get_elements(formula):
     except:
         return []
 
-
 def convert_fractional_composition(formula):
     try:
         comp = mg.Composition(formula).fractional_composition.formula
         return comp
     except:
         pass
-
 
 def main(args):
     data_path = args.data_path
@@ -350,13 +346,13 @@ def main(args):
     df_data["Seebeck coefficient"] = np.abs(df_data["Seebeck coefficient"]) * 10**6
 
     elements_list = []
-    for comp in df_data["composition"].unique():
+    for comp in df_data['composition'].unique():
         elements_list.extend(get_elements(comp))
     with open("models/starry_elements.pkl", "wb") as f:
         pickle.dump(elements_list, f)
 
     frac_comp_list = []
-    for comp in df_data["composition"].unique():
+    for comp in df_data['composition'].unique():
         frac_comp_list.append(convert_fractional_composition(comp))
     with open("models/starry_comosition.pkl", "wb") as f:
         pickle.dump(frac_comp_list, f)
@@ -453,9 +449,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--data-path",
-        default="datasets/20210216_interpolated_data.csv",
+        default="datasets/20230406_interpolated_data.csv",
         type=str,
-        help="Data path (default: datasets/20210216_interpolated_data.csv)",
+        help="Data path (default: datasets/20230406_interpolated_data.csv)",
     )
     parser.add_argument(
         "--is_tuning",
