@@ -2,10 +2,6 @@ import pandas as pd
 import numpy as np
 import pickle
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import load_model
 import random
 import matminer.featurizers.composition.composite as composite
@@ -102,11 +98,50 @@ def get_feature(formula: str) -> list:
         return []
 
 
+with open("models/starry_elements.pkl", "rb") as f:
+    starry_elements = pickle.load(f)
+
+
+def filter_elements(comp_str):
+    comp = mg.Composition(comp_str)
+    elements = [el.symbol for el in comp.elements]
+    return all(el in starry_elements for el in elements)
+
+
+with open("models/starry_comosition.pkl", "rb") as f:
+    frac_comp_list = pickle.load(f)
+
+
+def filter_composition(comp_str):
+    comp = mg.Composition(comp_str).fractional_composition.formula
+    return comp not in frac_comp_list
+
+
 def main(args):
     data_path = args.data_path
     df_data = pd.read_csv(data_path)
     df_data = df_data[df_data["e_above_hull"] == 0]
     df_data = df_data[(df_data["band_gap"] > 0) & (df_data["band_gap"] <= 2)]
+
+    el_filters = []
+    with ProcessPoolExecutor(max_workers=None) as executor:
+        futures = [
+            executor.submit(filter_elements, formula)
+            for formula in tqdm(df_data["pretty_formula"])
+        ]
+        for f in tqdm(futures):
+            el_filters.append(f.result())
+    df_data = df_data[el_filters]
+    comp_filters = []
+    with ProcessPoolExecutor(max_workers=None) as executor:
+        futures = [
+            executor.submit(filter_composition, formula)
+            for formula in tqdm(df_data["pretty_formula"])
+        ]
+        for f in tqdm(futures):
+            comp_filters.append(f.result())
+    df_data = df_data[comp_filters]
+
     comp_list = df_data["pretty_formula"].unique()
 
     comp_feats = []
@@ -182,14 +217,14 @@ def main(args):
         df_results = df_results.reset_index(drop=True)
         df_results.index = df_results.index + 1
 
-        fig = plt.figure(figsize=(12, 7), dpi=400, facecolor="w", edgecolor="k")
+        fig = plt.figure(figsize=(12, 12), dpi=400, facecolor="w", edgecolor="k")
         ax = fig.add_subplot(1, 1, 1)
         ax.tick_params(pad=1)
         ax.xaxis.set_ticks_position("top")
         ax.tick_params(bottom="off", top="off")
         ax.tick_params(left="off")
         ax.tick_params(bottom=False, left=False, right=False, top=False)
-        rank = 50
+        rank = 100
         sns.heatmap(
             df_results.iloc[:rank],
             cmap="jet",
@@ -205,11 +240,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-    seed_value = 10
-    random.seed(seed_value)
-    np.random.seed(seed_value)
-    tf.random.set_seed(seed_value)
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--data-path",

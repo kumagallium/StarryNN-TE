@@ -2,10 +2,6 @@ import pandas as pd
 import numpy as np
 import pickle
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import load_model
 import random
 import matminer.featurizers.composition.composite as composite
@@ -14,8 +10,6 @@ magpie_preset = composite.ElementProperty.from_preset("magpie")
 import pymatgen.core as mg
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
-import matplotlib.pyplot as plt
-import seaborn as sns
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -144,11 +138,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-    seed_value = 0
-    random.seed(seed_value)
-    np.random.seed(seed_value)
-    tf.random.set_seed(seed_value)
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--data-path",

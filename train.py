@@ -92,37 +92,52 @@ def get_feature(formula: str) -> list:
 
 
 def build_model(hp, input_dim):
-    inputs = Input(shape=(input_dim,))
+    model = Sequential()
 
-    x = Dense(
-        units=hp.Int("input_units", min_value=32, max_value=1024, step=32),
-        activation="sigmoid",
-    )(inputs)
-    x = Dropout(rate=hp.Float("dropout_1", min_value=0.0, max_value=0.5, step=0.01))(x)
-    x = Dense(
-        units=hp.Int("hidden_units", min_value=32, max_value=1024, step=32),
-        activation="sigmoid",
-    )(x)
-    x = Dropout(rate=hp.Float("dropout_2", min_value=0.0, max_value=0.5, step=0.01))(x)
+    model.add(
+        Dense(
+            units=hp.Int(
+                "input_units", min_value=32, max_value=512, step=32, default=288
+            ),
+            input_dim=input_dim,
+            activation="sigmoid",
+        )
+    )
 
-    output1 = Dense(1, activation="linear", name="output1")(x)
-    output2 = Dense(1, activation="linear", name="output2")(x)
-    output3 = Dense(1, activation="linear", name="output3")(x)
-    output4 = Dense(1, activation="linear", name="output4")(x)
-    output5 = Dense(1, activation="linear", name="output5")(x)
+    model.add(
+        Dropout(
+            rate=hp.Float(
+                "dropout_1", min_value=0.0, max_value=0.5, default=0.12, step=0.01
+            )
+        )
+    )
 
-    model = Model(inputs=inputs, outputs=[output1, output2, output3, output4, output5])
+    model.add(
+        Dense(
+            units=hp.Int(
+                "hidden_units", min_value=32, max_value=512, step=32, default=224
+            ),
+            activation="sigmoid",
+        )
+    )
+
+    model.add(
+        Dropout(
+            rate=hp.Float(
+                "dropout_2", min_value=0.0, max_value=0.5, default=0.42, step=0.01
+            )
+        )
+    )
+
+    model.add(Dense(5, activation="linear"))
 
     model.compile(
         optimizer=Adam(
-            learning_rate=hp.Choice("learning_rate", values=[1e-2, 1e-3, 1e-4])
+            learning_rate=hp.Choice(
+                "learning_rate", values=[1e-2, 1e-3, 1e-4], default=0.01
+            )
         ),
-        loss={
-            "output1": "mean_squared_error",
-            "output2": "mean_squared_error",
-            "output3": "mean_squared_error",
-            "output4": "mean_squared_error",
-        },
+        loss="mean_squared_error",
     )
 
     return model
@@ -157,11 +172,11 @@ def tuning(input_dim, X_train, y_train, X_test, y_test):
 def set_nn(input_dim):
     model = Sequential()
     model.add(Dense(288, input_dim=input_dim, activation="sigmoid"))
-    model.add(Dropout(0.12))
-    model.add(Dense(224, activation="sigmoid"))
-    model.add(Dropout(0.42))
+    model.add(Dropout(0.17))
+    model.add(Dense(416, activation="sigmoid"))
+    model.add(Dropout(0.32))
     model.add(Dense(5, activation="linear"))
-    optimizer = Adam(learning_rate=0.01)
+    optimizer = Adam(learning_rate=0.001)
     model.compile(optimizer=optimizer, loss="mean_squared_error")
 
     return model
@@ -194,7 +209,7 @@ def get_model(is_tuning, input_dim, X_train, y_train, X_test, y_test):
     val_loss = history.history["val_loss"]
     epochs = list(range(1, len(train_loss) + 1))
 
-    fig = plt.figure(figsize=(4.5, 4), dpi=300, facecolor="w", edgecolor="k")
+    fig = plt.figure(figsize=(4, 4), dpi=300, facecolor="w", edgecolor="k")
     ax = fig.add_subplot(1, 1, 1)
     ax.xaxis.set_ticks_position("both")
     ax.yaxis.set_ticks_position("both")
@@ -237,13 +252,9 @@ def get_final_model(is_tuning, input_dim, X_train, y_train):
 
     return model
 
-    filnal_history = model.fit(X_final, y_final, epochs=100, batch_size=1024)
-
-    return model
-
 
 def viz_parity_plot(target, true, pred):
-    fig = plt.figure(figsize=(4.5, 4), dpi=300, facecolor="w", edgecolor="k")
+    fig = plt.figure(figsize=(4, 4), dpi=300, facecolor="w", edgecolor="k")
     ax = fig.add_subplot(1, 1, 1)
     ax.xaxis.set_ticks_position("both")
     ax.yaxis.set_ticks_position("both")
@@ -291,6 +302,23 @@ def viz_parity_plot(target, true, pred):
     plt.savefig("results/parity_plot_" + target.replace(" ", "_") + ".png")
 
 
+def get_elements(formula):
+    try:
+        comp = mg.Composition(formula)
+        elements = [el.symbol for el in comp.elements]
+        return elements
+    except:
+        return []
+
+
+def convert_fractional_composition(formula):
+    try:
+        comp = mg.Composition(formula).fractional_composition.formula
+        return comp
+    except:
+        pass
+
+
 def main(args):
     data_path = args.data_path
     df_data = pd.read_csv(data_path)
@@ -320,6 +348,18 @@ def main(args):
     df_data["Z"] = df_data["ZT"] / df_data["Temperature"]
     df_data = df_data[(df_data["ZT"] > 0)].dropna()
     df_data["Seebeck coefficient"] = np.abs(df_data["Seebeck coefficient"]) * 10**6
+
+    elements_list = []
+    for comp in df_data["composition"].unique():
+        elements_list.extend(get_elements(comp))
+    with open("models/starry_elements.pkl", "wb") as f:
+        pickle.dump(elements_list, f)
+
+    frac_comp_list = []
+    for comp in df_data["composition"].unique():
+        frac_comp_list.append(convert_fractional_composition(comp))
+    with open("models/starry_comosition.pkl", "wb") as f:
+        pickle.dump(frac_comp_list, f)
 
     comp_feats = []
     with ProcessPoolExecutor(max_workers=None) as executor:
@@ -413,9 +453,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--data-path",
-        default="datasets/20230406_interpolated_data.csv",
+        default="datasets/20210216_interpolated_data.csv",
         type=str,
-        help="Data path (default: datasets/20230406_interpolated_data.csv)",
+        help="Data path (default: datasets/20210216_interpolated_data.csv)",
     )
     parser.add_argument(
         "--is_tuning",
