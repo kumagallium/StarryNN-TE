@@ -68,6 +68,7 @@ def parity_plot(target, true, pred):
 
     ax.grid(True)
     ax.plot([ax_min, ax_max], [ax_min, ax_max], color="red")
+    plt.tight_layout()
     plt.savefig("results/parity_plot_" + target.replace(" ", "_") + ".png")
 
 
@@ -85,6 +86,7 @@ def loss_plot(epochs, train_loss, val_loss):
     ax.set_xlabel("Epochs")
     ax.set_ylabel("Loss")
     ax.legend()
+    plt.tight_layout()
     plt.savefig("results/loss_plot.png")
 
 

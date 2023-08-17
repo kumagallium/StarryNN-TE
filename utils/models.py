@@ -66,11 +66,11 @@ def tuning(input_dim, x_train, y_train, x_test, y_test):
     tuner = kt.Hyperband(
         lambda hp: build_model(hp, input_dim=input_dim),
         objective="val_loss",
-        max_epochs=50,
+        max_epochs=100,
         directory="models/output_dir",
         project_name="keras_tuning",
     )
-    tuner.search(x_train, y_train, epochs=50, validation_data=(x_test, y_test))
+    tuner.search(x_train, y_train, epochs=100, validation_data=(x_test, y_test))
     best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
 
     with open("models/best_hps.pkl", "wb") as f:
@@ -120,7 +120,7 @@ def get_model(is_tuning, input_dim, x_train, y_train, x_test, y_test):
         else:
             model = set_nn(input_dim)
     history = model.fit(
-        x_train, y_train, epochs=50, batch_size=1024, validation_data=(x_test, y_test)
+        x_train, y_train, epochs=100, batch_size=1024, validation_data=(x_test, y_test)
     )
 
     train_loss = history.history["loss"]
@@ -149,7 +149,7 @@ def get_final_model(is_tuning, input_dim, x_train, y_train):
             model = build_model(loaded_best_hps, input_dim)
         else:
             model = set_nn(input_dim)
-    history = model.fit(x_train, y_train, epochs=50, batch_size=1024)
+    history = model.fit(x_train, y_train, epochs=100, batch_size=1024)
     if is_tuning == 1:
         model.save("models/final_tuned_model.keras")
     else:
