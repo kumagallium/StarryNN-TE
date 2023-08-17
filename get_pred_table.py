@@ -1,156 +1,23 @@
 import pandas as pd
-import numpy as np
 import pickle
-import tensorflow as tf
 from tensorflow.keras.models import load_model
-import random
+from tqdm import tqdm
+import argparse
+from utils import preprocess
+from utils import viz
 import matminer.featurizers.composition.composite as composite
 
 magpie_preset = composite.ElementProperty.from_preset("magpie")
-import pymatgen.core as mg
-from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor
-import matplotlib.pyplot as plt
-import seaborn as sns
 import warnings
 
 warnings.filterwarnings("ignore")
-import argparse
-
-plt.rcParams["font.size"] = 11
-plt.rcParams["font.family"] = "sans-serif"
-plt.rcParams["font.sans-serif"] = ["Arial"]
-plt.rcParams["xtick.direction"] = "in"  # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
-plt.rcParams["ytick.direction"] = "in"  # 目盛り線の向き、内側"in"か外側"out"かその両方"inout"か
-plt.rcParams["xtick.major.width"] = 1.2  # x軸主目盛り線の線幅
-plt.rcParams["ytick.major.width"] = 1.2  # y軸主目盛り線の線幅
-plt.rcParams["xtick.major.size"] = 3  # x軸主目盛り線の長さ
-plt.rcParams["ytick.major.size"] = 3  # y軸主目盛り線の長さ
-# plt.rcParams['axes.grid.axis'] = 'both'
-plt.rcParams["axes.linewidth"] = 1.2
-plt.rcParams["axes.grid"] = False  # True
-plt.rcParams["axes.edgecolor"] = "black"
-plt.rcParams["grid.linestyle"] = "--"
-plt.rcParams["grid.linewidth"] = 0.3
-plt.rcParams["legend.markerscale"] = 2
-plt.rcParams["legend.fancybox"] = False  # Trueを指定すると凡例の枠の角が丸くなる
-plt.rcParams["legend.framealpha"] = 1  # 判例の透明度
-plt.rcParams["legend.edgecolor"] = "black"
-
-
-def get_formula_to_feature(formula: str) -> list:
-    try:
-        mg_comp = mg.Composition(formula)
-        return magpie_preset.featurize(mg_comp)
-
-    except Exception as e:
-        # print(f"Error: {e}")
-        return []
-
-
-def identify_material_and_dopants(formula: str) -> dict:
-    composition = mg.Composition(formula).fractional_composition
-
-    # Determine base material and dopant compositions
-    base_material = {el: amt for el, amt in composition.items() if amt >= 0.1}
-    dopants = {el: amt for el, amt in composition.items() if amt < 0.1}
-
-    # Normalize base material to sum to 1
-    total_base = sum(base_material.values())
-    total_dopants = sum(dopants.values())
-    ratio = total_dopants / total_base
-
-    base_material_normalized = {
-        el: amt / total_base for el, amt in base_material.items()
-    }
-    dopants_normalized = {el: amt / total_base for el, amt in dopants.items()}
-
-    return {"base_material": base_material_normalized, "dopants": dopants_normalized}
-
-
-def get_feature(formula: str) -> list:
-    try:
-        comp_dict = identify_material_and_dopants(formula)
-        feature = []
-
-        base_mat_str = ""
-        for el, frac in comp_dict["base_material"].items():
-            base_mat_str += el.symbol + str(frac)
-
-        feature = get_formula_to_feature(base_mat_str)
-
-        if len(comp_dict["dopants"]) > 0:
-            dopants_str = ""
-            sum_frac = 0
-            for el, frac in comp_dict["dopants"].items():
-                dopants_str += el.symbol + str(frac)
-                sum_frac += frac
-            dopants_feature = sum_frac * np.array(get_formula_to_feature(dopants_str))
-        else:
-            dopants_feature = [0] * len(feature)
-
-        feature.extend(list(dopants_feature))
-
-        return feature
-
-    except Exception as e:
-        # print(f"Error: {e}")
-        return []
-
-
-with open("models/starry_elements.pkl", "rb") as f:
-    starry_elements = pickle.load(f)
-
-
-def filter_elements(comp_str):
-    comp = mg.Composition(comp_str)
-    elements = [el.symbol for el in comp.elements]
-    return all(el in starry_elements for el in elements)
-
-
-with open("models/starry_comosition.pkl", "rb") as f:
-    frac_comp_list = pickle.load(f)
-
-
-def filter_composition(comp_str):
-    comp = mg.Composition(comp_str).fractional_composition.formula
-    return comp not in frac_comp_list
 
 
 def main(args):
     data_path = args.data_path
     df_data = pd.read_csv(data_path)
-    df_data = df_data[df_data["e_above_hull"] == 0]
-    df_data = df_data[(df_data["band_gap"] > 0) & (df_data["band_gap"] <= 2)]
 
-    el_filters = []
-    with ProcessPoolExecutor(max_workers=None) as executor:
-        futures = [
-            executor.submit(filter_elements, formula)
-            for formula in tqdm(df_data["pretty_formula"])
-        ]
-        for f in tqdm(futures):
-            el_filters.append(f.result())
-    df_data = df_data[el_filters]
-    comp_filters = []
-    with ProcessPoolExecutor(max_workers=None) as executor:
-        futures = [
-            executor.submit(filter_composition, formula)
-            for formula in tqdm(df_data["pretty_formula"])
-        ]
-        for f in tqdm(futures):
-            comp_filters.append(f.result())
-    df_data = df_data[comp_filters]
-
-    comp_list = df_data["pretty_formula"].unique()
-
-    comp_feats = []
-    with ProcessPoolExecutor(max_workers=None) as executor:
-        futures = [executor.submit(get_feature, formula) for formula in tqdm(comp_list)]
-        for f in tqdm(futures):
-            comp_feats.append(f.result())
-    df_features = pd.DataFrame(comp_feats)
-
+    df_features, comp_list = preprocess.get_mp_features(df_data)
     input_list = []
     T_range = list(range(100, 1100, 100))
     complist_T = []
@@ -162,20 +29,21 @@ def main(args):
             input_list.append(tmp)
     df_input = pd.DataFrame(input_list)
     df_input = df_input.rename(columns={df_input.shape[1] - 1: "Temperature"})
-    X = df_input
-    X.columns = X.columns.astype(str)
-    predictions = X.copy()
+    mp_x = df_input
+    mp_x.columns = mp_x.columns.astype(str)
 
-    with open("models/scaler_X_final.pkl", "rb") as f:
+    predictions = mp_x.copy()
+
+    with open("models/scaler_x_final.pkl", "rb") as f:
         scaler_x = pickle.load(f)
 
     with open("models/scaler_y_final.pkl", "rb") as f:
         scaler_y = pickle.load(f)
-    X = scaler_x.transform(X)
+    mp_x = scaler_x.transform(mp_x)
 
     loaded_model = load_model(args.model_path)
     print(loaded_model.summary())
-    y_pred = loaded_model.predict(X)
+    y_pred = loaded_model.predict(mp_x)
     y_pred = scaler_y.inverse_transform(y_pred)
 
     outputprop = [
@@ -200,12 +68,12 @@ def main(args):
         dict_formula = {}
         dict_results = {}
         for T in T_range:
-            dict_formula[T] = index_tmp = list(
+            dict_formula[T] = list(
                 df_te_mat[df_te_mat["Temperature"] == T].sort_values(
                     by=prop, ascending=False
                 )["composition"]
             )
-            dict_results[T] = results_tmp = list(
+            dict_results[T] = list(
                 df_te_mat[df_te_mat["Temperature"] == T].sort_values(
                     by=prop, ascending=False
                 )[prop]
@@ -217,26 +85,7 @@ def main(args):
         df_results = df_results.reset_index(drop=True)
         df_results.index = df_results.index + 1
 
-        fig = plt.figure(figsize=(12, 12), dpi=400, facecolor="w", edgecolor="k")
-        ax = fig.add_subplot(1, 1, 1)
-        ax.tick_params(pad=1)
-        ax.xaxis.set_ticks_position("top")
-        ax.tick_params(bottom="off", top="off")
-        ax.tick_params(left="off")
-        ax.tick_params(bottom=False, left=False, right=False, top=False)
-        rank = 100
-        sns.heatmap(
-            df_results.iloc[:rank],
-            cmap="jet",
-            annot=df_formula.iloc[:rank],
-            fmt="",
-            # vmin=0.5,
-            # vmax=1,
-            annot_kws={"size": 7},
-            cbar_kws={"pad": 0.01},
-        )
-        plt.tight_layout()
-        plt.savefig("results/pred_table_" + prop.replace(" ", "_") + ".png")
+        viz.pred_table(df_results, df_formula, prop)
 
 
 if __name__ == "__main__":
