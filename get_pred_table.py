@@ -19,7 +19,7 @@ def main(args):
 
     df_features, comp_list = preprocess.get_mp_features(df_data)
     input_list = []
-    T_range = list(range(100, 1100, 100))
+    T_range = list(range(300, 1100, 100))
     complist_T = []
     for i, comp in tqdm(enumerate(comp_list)):
         for T in T_range:
@@ -28,7 +28,7 @@ def main(args):
             tmp.append(T)
             input_list.append(tmp)
     df_input = pd.DataFrame(input_list)
-    df_input = df_input.rename(columns={df_input.shape[1] - 1: "Temperature"})
+    df_input = df_input.rename(columns={df_input.shape[1] - 1: "Temperature_input"})
     mp_x = df_input
     mp_x.columns = mp_x.columns.astype(str)
 
@@ -52,13 +52,14 @@ def main(args):
         "Thermal conductivity",
         "PF_calc",
         "ZT",
+        "Temperature",
     ]
     predictions = pd.concat(
         [predictions, pd.DataFrame(y_pred, columns=outputprop)], axis=1
     )
     predictions["composition"] = complist_T
 
-    columns = ["composition", "Temperature"]
+    columns = ["composition", "Temperature_input"]
     columns.extend(outputprop)
     df_te_mat = predictions[columns]
     df_te_mat = df_te_mat.sort_values(by="ZT", ascending=False)
@@ -69,12 +70,12 @@ def main(args):
         dict_results = {}
         for T in T_range:
             dict_formula[T] = list(
-                df_te_mat[df_te_mat["Temperature"] == T].sort_values(
+                df_te_mat[df_te_mat["Temperature_input"] == T].sort_values(
                     by=prop, ascending=False
                 )["composition"]
             )
             dict_results[T] = list(
-                df_te_mat[df_te_mat["Temperature"] == T].sort_values(
+                df_te_mat[df_te_mat["Temperature_input"] == T].sort_values(
                     by=prop, ascending=False
                 )[prop]
             )

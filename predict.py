@@ -1,9 +1,8 @@
 import pandas as pd
-import numpy as np
 import pickle
 from tensorflow.keras.models import load_model
 import argparse
-from utils import preprocess
+from utils import utils
 import matminer.featurizers.composition.composite as composite
 
 magpie_preset = composite.ElementProperty.from_preset("magpie")
@@ -13,34 +12,30 @@ warnings.filterwarnings("ignore")
 
 
 def main(args):
-    data_path = args.data_path
-    df_data = pd.read_csv(data_path)
-
-    df_features, comp_list = preprocess.get_mp_features(df_data)
-
     target = args.formula
-    target_idx = np.where(comp_list == target)[0][0]
-    T_list = list(range(300, 1100, 100))
+
     input_list = []
+    T_list = list(range(300, 1100, 100))
     for T in T_list:
-        tmp = list(df_features.iloc[target_idx, :])
+        tmp = list(utils.get_feature(target))
         tmp.append(T)
         input_list.append(tmp)
-    df_input = pd.DataFrame(input_list).dropna()
-    df_input = df_input.rename(columns={df_input.shape[1] - 1: "Temperature"})
-    X = df_input
-    X.columns = X.columns.astype(str)
+
+    df_input = pd.DataFrame(input_list)
+    df_input = df_input.rename(columns={df_input.shape[1] - 1: "Temperature_input"})
+    mp_x = df_input
+    mp_x.columns = mp_x.columns.astype(str)
 
     with open("models/scaler_x_final.pkl", "rb") as f:
         scaler_x = pickle.load(f)
     with open("models/scaler_y_final.pkl", "rb") as f:
         scaler_y = pickle.load(f)
 
-    X = scaler_x.transform(X)
+    mp_x = scaler_x.transform(mp_x)
 
     loaded_model = load_model(args.model_path)
     print(loaded_model.summary())
-    y_pred = loaded_model.predict(X)
+    y_pred = loaded_model.predict(mp_x)
     y_pred = scaler_y.inverse_transform(y_pred)
     outputprop = [
         "Seebeck coefficient",
@@ -48,6 +43,7 @@ def main(args):
         "Thermal conductivity",
         "PF_calc",
         "ZT",
+        "Temperature",
     ]
     for idx, prop in enumerate(outputprop):
         if prop == "Thermal conductivity":

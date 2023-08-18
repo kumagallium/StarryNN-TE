@@ -48,7 +48,7 @@ def build_model(hp, input_dim):
             )
         )
     )
-    model.add(Dense(5, activation="linear"))
+    model.add(Dense(6, activation="linear"))
     model.compile(
         optimizer=Adam(
             learning_rate=hp.Choice(
@@ -89,11 +89,11 @@ def tuning(input_dim, x_train, y_train, x_test, y_test):
 
 def set_nn(input_dim):
     model = Sequential()
-    model.add(Dense(288, input_dim=input_dim, activation="sigmoid"))
-    model.add(Dropout(0.17))
-    model.add(Dense(416, activation="sigmoid"))
-    model.add(Dropout(0.32))
-    model.add(Dense(5, activation="linear"))
+    model.add(Dense(64, input_dim=input_dim, activation="sigmoid"))
+    model.add(Dropout(0.02))
+    model.add(Dense(480, activation="sigmoid"))
+    model.add(Dropout(0.42))
+    model.add(Dense(6, activation="linear"))
     optimizer = Adam(learning_rate=0.001)
     model.compile(optimizer=optimizer, loss="mean_squared_error")
 
@@ -131,6 +131,7 @@ def get_model(is_tuning, input_dim, x_train, y_train, x_test, y_test):
 
     if is_tuning == 1:
         model.save("models/tuned_model.keras")
+        model.save("models/model.keras")
     else:
         model.save("models/model.keras")
 
@@ -152,6 +153,7 @@ def get_final_model(is_tuning, input_dim, x_train, y_train):
     history = model.fit(x_train, y_train, epochs=100, batch_size=1024)
     if is_tuning == 1:
         model.save("models/final_tuned_model.keras")
+        model.save("models/final_model.keras")
     else:
         model.save("models/final_model.keras")
 

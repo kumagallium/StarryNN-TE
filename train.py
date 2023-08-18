@@ -27,6 +27,7 @@ def main(args):
         "Thermal conductivity",
         "PF_calc",
         "ZT",
+        "Temperature",
     ]
 
     (

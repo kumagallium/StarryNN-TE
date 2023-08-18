@@ -65,6 +65,13 @@ def parity_plot(target, true, pred):
         ax_max = 2
         ax.set_xlim(ax_min, ax_max)
         ax.set_ylim(ax_min, ax_max)
+    elif target == "Temperature":
+        ax.set_xlabel("Experimental $T$ [K]")
+        ax.set_ylabel("Predicted $T$ [K]")
+        ax_min = 100
+        ax_max = 1000
+        ax.set_xlim(ax_min, ax_max)
+        ax.set_ylim(ax_min, ax_max)
 
     ax.grid(True)
     ax.plot([ax_min, ax_max], [ax_min, ax_max], color="red")

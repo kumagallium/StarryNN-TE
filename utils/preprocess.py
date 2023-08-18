@@ -51,6 +51,7 @@ def get_train_test_dataset(df_data, outputprop):
     df_data["Z"] = df_data["ZT"] / df_data["Temperature"]
     df_data = df_data[(df_data["ZT"] > 0)].dropna()
     df_data["Seebeck coefficient"] = np.abs(df_data["Seebeck coefficient"]) * 10**6
+    df_data["Temperature_input"] = df_data["Temperature"]
 
     elements_list = []
     for comp in df_data["composition"].unique():
@@ -75,7 +76,7 @@ def get_train_test_dataset(df_data, outputprop):
 
     df_features = pd.DataFrame(comp_feats)
     unique_key = "sid"
-    inputprop = ["Temperature", unique_key]
+    inputprop = ["Temperature_input", unique_key]
 
     df_features = df_features.reset_index(drop=True)
     df_data = df_data.reset_index(drop=True)
