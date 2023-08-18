@@ -47,7 +47,7 @@ def get_train_test_dataset(df_data, outputprop):
         * 10**3
     )
     df_data["ZT_RAE"] = np.abs((df_data["ZT_calc"] - df_data["ZT"]) / df_data["ZT"])
-    df_data = df_data[(df_data["ZT_RAE"] > 0) & (df_data["ZT_RAE"] < 0.4)].dropna()
+    df_data = df_data[(df_data["ZT_RAE"] > 0) & (df_data["ZT_RAE"] < 0.1)].dropna()
     df_data["Z"] = df_data["ZT"] / df_data["Temperature"]
     df_data = df_data[(df_data["ZT"] > 0)].dropna()
     df_data["Seebeck coefficient"] = np.abs(df_data["Seebeck coefficient"]) * 10**6
