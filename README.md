@@ -5,7 +5,7 @@
 	- [Introduction](#introduction)
 	- [Prerequisites](#prerequisites)
 	- [Installation](#installation)
-	- [Examples](#results)
+	- [Results](#results)
 	- [How to cite](#how-to-cite)
 	- [How to contribute](#how-to-contribute)
 	- [Funding support](#funding-support)
